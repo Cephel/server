@@ -1710,61 +1710,20 @@ void Unit::CalculateMeleeDamage(Unit *pVictim, uint32 damage, CalcDamageInfo *da
             // int32 victimDefenseSkill = pVictim->GetDefenseSkillValue(this);
             int SkillDiff = 0;
             SkillDiff = pVictim->GetDefenseSkillValue(this) - GetWeaponSkillValue(damageInfo->attackType, pVictim);
-            float reducePercent = 1.0f;
-            // (Youfie) Formule de calcul de la réduction de dégâts des érafles, influencée en pré-BC par le +skill au delà de [niveau du joueur * 5]
-            // Formule d'Athan retenue et supposée comme Blizz-like au regard des multiples sources et tests concordants
-            // float reducePercent = 1 - (5*(pow(2,(victimDefenseSkill/5) - (attackerWeaponSkill/5) - 1))/100);
-            // Après tentative d'implémentation "propre" de la formule et de nombreux échecs, mise en place de celle-ci après calcul manuel des différentes valeurs
-            // cf. http://nostalrius.org/forum/viewtopic.php?p=43964#p43964 pour infos et sources
-            if (SkillDiff >= 15)
-                reducePercent = 0.6500f;
-            if (SkillDiff <= 0)
-                reducePercent = 1;
-            switch (SkillDiff)
-            {
-                case 14 :
-                    reducePercent = 0.7018f;
-                    break;
-                case 13 :
-                    reducePercent = 0.7469f;
-                    break;
-                case 12 :
-                    reducePercent = 0.7860f;
-                    break;
-                case 11 :
-                    reducePercent = 0.8203f;
-                    break;
-                case 10 :
-                    reducePercent = 0.8500f;
-                    break;
-                case 9 :
-                    reducePercent = 0.8759f;
-                    break;
-                case 8 :
-                    reducePercent = 0.8984f;
-                    break;
-                case 7 :
-                    reducePercent = 0.9180f;
-                    break;
-                case 6 :
-                    reducePercent = 0.9351f;
-                    break;
-                case 5 :
-                    reducePercent = 0.9500f;
-                    break;
-                case 4 :
-                    reducePercent = 0.9629f;
-                    break;
-                case 3 :
-                    reducePercent = 0.9742f;
-                    break;
-                case 2 :
-                    reducePercent = 0.9840f;
-                    break;
-                case 1 :
-                    reducePercent = 0.9926f;
-                    break;
-            }
+
+            // The reduction for glancing blows is rolled between two gates.
+            // These gates are determined by the difference between the weapon skill and the defense skill of the target.
+            // The game then picks a random value between the lower and upper gate as a reduction coefficient.
+            float lowerGBGate = 1.3 - (SkillDiff) * 0.05f;
+            float lowerGBGate = lowerGBGate > 0.91f ? 0.91f : lowerGBGate;  // The lower gate is clamped between 0.01 < x < 0.91
+            float lowerGBGate = lowerGBGate < 0.01f ? 0.01f : lowerGBGate;
+
+            float upperGBGate = 1.2 - (SkillDiff) * 0.03f;
+            float upperGBGate = upperGBGate > 0.99f ? 0.99f : upperGBGate;  // The upper gate is clamped between 0.2 < x < 0.99
+            float upperGBGate = upperGBGate < 0.2f ? 0.2f : upperGBGate;
+
+            int randomSpread = irand((int)(lowerGBGate * 100), (int)(upperGBGate * 100));
+            float reducePercent = (float)randomSpread / 100.f;
 
             // sLog.outString("SkillDiff = %i, reducePercent = %f", SkillDiff, reducePercent); // Pour tests & débug via la console
 
