@@ -1715,12 +1715,12 @@ void Unit::CalculateMeleeDamage(Unit *pVictim, uint32 damage, CalcDamageInfo *da
             // These gates are determined by the difference between the weapon skill and the defense skill of the target.
             // The game then picks a random value between the lower and upper gate as a reduction coefficient.
             float lowerGBGate = 1.3 - (SkillDiff) * 0.05f;
-            float lowerGBGate = lowerGBGate > 0.91f ? 0.91f : lowerGBGate;  // The lower gate is clamped between 0.01 < x < 0.91
-            float lowerGBGate = lowerGBGate < 0.01f ? 0.01f : lowerGBGate;
+            lowerGBGate = lowerGBGate > 0.91f ? 0.91f : lowerGBGate;  // The lower gate is clamped between 0.01 < x < 0.91
+            lowerGBGate = lowerGBGate < 0.01f ? 0.01f : lowerGBGate;
 
             float upperGBGate = 1.2 - (SkillDiff) * 0.03f;
-            float upperGBGate = upperGBGate > 0.99f ? 0.99f : upperGBGate;  // The upper gate is clamped between 0.2 < x < 0.99
-            float upperGBGate = upperGBGate < 0.2f ? 0.2f : upperGBGate;
+            upperGBGate = upperGBGate > 0.99f ? 0.99f : upperGBGate;  // The upper gate is clamped between 0.2 < x < 0.99
+            upperGBGate = upperGBGate < 0.2f ? 0.2f : upperGBGate;
 
             int randomSpread = irand((int)(lowerGBGate * 100), (int)(upperGBGate * 100));
             float reducePercent = (float)randomSpread / 100.f;
