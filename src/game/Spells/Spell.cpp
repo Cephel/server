@@ -592,14 +592,13 @@ void Spell::FillTargetMap()
                 break;
         }
 
-        if (m_caster->GetTypeId() == TYPEID_PLAYER && !(m_spellInfo->AttributesEx & SPELL_ATTR_EX_NO_THREAT))
+        if (m_caster->GetTypeId() == TYPEID_PLAYER)
         {
             Player *me = (Player*)m_caster;
             for (UnitList::const_iterator itr = tmpUnitMap.begin(); itr != tmpUnitMap.end(); ++itr)
             {
                 Player *targetOwner = (*itr)->GetCharmerOrOwnerPlayerOrPlayerItself();
-                if ((targetOwner && targetOwner != me && targetOwner->IsPvP() && !me->IsInDuelWith(targetOwner)) || // PvP flagged players
-                    ((*itr)->IsCreature() && (*itr)->IsPvP()))                                                      // PvP flagged creatures
+                if (targetOwner && targetOwner != me && targetOwner->IsPvP() && !me->IsInDuelWith(targetOwner))
                 {
                     me->UpdatePvP(true);
                     me->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ENTER_PVP_COMBAT);
@@ -2947,9 +2946,14 @@ bool IsAcceptableAutorepeatError(SpellCastResult result)
     return false;
 }
 
-void Spell::prepare(SpellCastTargets const* targets, Aura* triggeredByAura)
+void Spell::prepare(SpellCastTargets targets, Aura* triggeredByAura)
 {
-    m_targets = *targets;
+    m_targets = std::move(targets);
+    prepare(triggeredByAura);
+}
+
+void Spell::prepare(Aura* triggeredByAura)
+{
 
     m_spellState = SPELL_STATE_PREPARING;
     m_delayed = m_spellInfo->speed > 0.0f || (m_spellInfo->IsCCSpell() && m_targets.getUnitTarget() && m_targets.getUnitTarget()->IsPlayer());
@@ -3021,7 +3025,6 @@ void Spell::prepare(SpellCastTargets const* targets, Aura* triggeredByAura)
                 return;
             }
         }
-
         // Prepare data for triggers
         prepareDataForTriggerSystem();
 
@@ -3333,7 +3336,8 @@ void Spell::cast(bool skipCheck)
 
     // CAST SPELL
     // Remove any remaining invis auras on cast completion, should only be gnomish cloaking device
-    m_caster->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ON_CAST_SPELL);
+    if (!m_IsTriggeredSpell)
+        m_caster->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_ON_CAST_SPELL);
     
     SendSpellCooldown();
 
@@ -4641,7 +4645,7 @@ void Spell::CastTriggerSpells()
     for (SpellInfoList::const_iterator si = m_TriggerSpells.begin(); si != m_TriggerSpells.end(); ++si)
     {
         Spell* spell = new Spell(m_caster, (*si), true, m_originalCasterGUID);
-        spell->prepare(&m_targets);                         // use original spell original targets
+        spell->prepare(m_targets);                         // use original spell original targets
     }
 }
 
@@ -5024,7 +5028,7 @@ SpellCastResult Spell::CheckCast(bool strict)
     // Nostalrius: impossible to cast spells while banned / feared / confused ...
     // Except divine shields, pvp trinkets for example
     // TODO: This condition allows an antifear item to be used while stuned for example.
-    if (!m_IsTriggeredSpell && !IsSpellHaveAura(m_spellInfo, SPELL_AURA_SCHOOL_IMMUNITY) && !IsSpellHaveAura(m_spellInfo, SPELL_AURA_MECHANIC_IMMUNITY) &&
+    if (!m_IsTriggeredSpell && !IsSpellAppliesAura(m_spellInfo, SPELL_AURA_SCHOOL_IMMUNITY) && !IsSpellAppliesAura(m_spellInfo, SPELL_AURA_MECHANIC_IMMUNITY) &&
             m_caster->hasUnitState(UNIT_STAT_ISOLATED | UNIT_STAT_STUNNED | UNIT_STAT_PENDING_STUNNED | UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING))
         return SPELL_FAILED_DONT_REPORT;
 
@@ -5568,6 +5572,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                         return SPELL_FAILED_ALREADY_OPEN;
                     if (!go->IsUseRequirementMet())
                         return SPELL_FAILED_TRY_AGAIN;
+
                 }
                 else if (Item* item = m_targets.getItemTarget())
                 {
@@ -7442,11 +7447,6 @@ public:
                         {
                             if (!casterUnit->IsValidAttackTarget(sourceUnit))
                                 continue;
-
-                            // Negative AoE from non flagged players cannot target other players
-                            if (Player *attackedPlayer = sourceUnit->GetCharmerOrOwnerPlayerOrPlayerItself())
-                                if (casterUnit->IsPlayer() && !casterUnit->IsPvP() && !((Player*)casterUnit)->IsInDuelWith(attackedPlayer))
-                                    continue;
                         }
                         else if (GameObject* gobj = i_originalCaster->ToGameObject())
                         {
@@ -7672,6 +7672,13 @@ void Spell::OnSpellLaunch()
 {
     if (!m_caster || !m_caster->IsInWorld())
         return;
+
+    if (m_spellInfo->Id == 21651 &&
+            sLockStore.LookupEntry(m_targets.getGOTarget()->GetGOInfo()->GetLockId())->Index[1] == LOCKTYPE_SLOW_OPEN)
+    {
+        Spell *visual = new Spell(m_caster, sSpellMgr.GetSpellEntry(24390), true);
+        visual->prepare();
+    }
 
     unitTarget = m_targets.getUnitTarget();
 

@@ -1287,7 +1287,7 @@ void Unit::CastSpell(Unit* Victim, SpellEntry const *spellInfo, bool triggered, 
             targets.setSource(caster->GetPositionX(), caster->GetPositionY(), caster->GetPositionZ());
 
     spell->SetCastItem(castItem);
-    spell->prepare(&targets, triggeredByAura);
+    spell->prepare(std::move(targets), triggeredByAura);
 }
 
 void Unit::CastCustomSpell(Unit* Victim, uint32 spellId, int32 const* bp0, int32 const* bp1, int32 const* bp2, bool triggered, Item *castItem, Aura* triggeredByAura, ObjectGuid originalCaster, SpellEntry const* triggeredBy)
@@ -1342,7 +1342,7 @@ void Unit::CastCustomSpell(Unit* Victim, SpellEntry const *spellInfo, int32 cons
     SpellCastTargets targets;
     targets.setUnitTarget(Victim);
     spell->SetCastItem(castItem);
-    spell->prepare(&targets, triggeredByAura);
+    spell->prepare(std::move(targets), triggeredByAura);
 }
 
 // used for scripting
@@ -1390,7 +1390,7 @@ void Unit::CastSpell(float x, float y, float z, SpellEntry const *spellInfo, boo
     SpellCastTargets targets;
     targets.setDestination(x, y, z);
     spell->SetCastItem(castItem);
-    spell->prepare(&targets, triggeredByAura);
+    spell->prepare(std::move(targets), triggeredByAura);
 }
 
 // Obsolete func need remove, here only for comotability vs another patches
@@ -3387,7 +3387,7 @@ void Unit::_UpdateAutoRepeatSpell()
 
         // we want to shoot
         Spell* spell = new Spell(this, m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_spellInfo, true);
-        spell->prepare(&(m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_targets));
+        spell->prepare(m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_targets);
 
         // all went good, reset attack
         resetAttackTimer(RANGED_ATTACK);
@@ -5384,83 +5384,68 @@ ReputationRank Unit::GetReactionTo(Unit const* target) const
                 return *repRank;
     }
 
-    // Interaction between pvp flagged units
-    if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE) &&
-        target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE))
+    if (HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE))
     {
-        if (selfPlayerOwner && targetPlayerOwner)
+        if (target->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PVP_ATTACKABLE))
         {
-            // always friendly to other unit controlled by player, or to the player himself
-            if (selfPlayerOwner == targetPlayerOwner)
-                return REP_FRIENDLY;
-
-            // duel - always hostile to opponent
-            if (selfPlayerOwner->duel && selfPlayerOwner->duel->opponent == targetPlayerOwner && selfPlayerOwner->duel->startTime != 0 && !selfPlayerOwner->duel->finished)
-                return REP_HOSTILE;
-
-            // same group - checks dependant only on our faction - skip FFA_PVP for example
-            if (selfPlayerOwner->IsInRaidWith(targetPlayerOwner))
-                return REP_FRIENDLY; // return true to allow config option AllowTwoSide.Interaction.Group to work
-            // however client seems to allow mixed group parties, because in 13850 client it works like:
-            // return GetFactionReactionTo(getFactionTemplateEntry(), target);
-
-            // Sanctuary
-            if (selfPlayerOwner->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_SANCTUARY) && targetPlayerOwner->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_SANCTUARY))
-                return REP_FRIENDLY;
-
-            // Nostalrius: Hackfix because UNIT_BYTE2_FLAG_FFA_PVP is not implemented yet.
-            if (selfPlayerOwner->IsFFAPvP() && targetPlayerOwner->IsFFAPvP())
-                return REP_HOSTILE;
-        }
-
-        // check FFA_PVP - not implemented that way on MaNGOS :/
-        /*
-        if (GetByteValue(UNIT_FIELD_BYTES_2, 1) & UNIT_BYTE2_FLAG_FFA_PVP
-            && target->GetByteValue(UNIT_FIELD_BYTES_2, 1) & UNIT_BYTE2_FLAG_FFA_PVP)
-            return REP_HOSTILE;
-        */
-
-        if (selfPlayerOwner)
-        {
-            if (FactionTemplateEntry const* targetFactionTemplateEntry = target->getFactionTemplateEntry())
+            if (selfPlayerOwner && targetPlayerOwner)
             {
-                if (ReputationRank const* repRank = selfPlayerOwner->GetReputationMgr().GetForcedRankIfAny(targetFactionTemplateEntry))
-                    return *repRank;
-                if (FactionEntry const* targetFactionEntry = sFactionStore.LookupEntry(targetFactionTemplateEntry->faction))
-                {
-                    if (targetFactionEntry->CanHaveReputation())
-                    {
-                        // check contested flags
-                        if (targetFactionTemplateEntry->factionFlags & FACTION_TEMPLATE_FLAG_CONTESTED_GUARD
-                                && selfPlayerOwner->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_CONTESTED_PVP))
-                            return REP_HOSTILE;
+                // always friendly to other unit controlled by player, or to the player himself
+                if (selfPlayerOwner == targetPlayerOwner)
+                    return REP_FRIENDLY;
 
-                        // if faction has reputation, hostile state depends only from AtWar state
-                        if (FactionState const* factionState = selfPlayerOwner->GetReputationMgr().GetState(targetFactionEntry))
-                            if (factionState->Flags & FACTION_FLAG_AT_WAR)
+                // duel - always hostile to opponent
+                if (selfPlayerOwner->duel && selfPlayerOwner->duel->opponent == targetPlayerOwner && selfPlayerOwner->duel->startTime != 0 && !selfPlayerOwner->duel->finished)
+                    return REP_HOSTILE;
+
+                // same group - checks dependant only on our faction - skip FFA_PVP for example
+                if (selfPlayerOwner->IsInRaidWith(targetPlayerOwner))
+                    return REP_FRIENDLY; // return true to allow config option AllowTwoSide.Interaction.Group to work
+                // however client seems to allow mixed group parties, because in 13850 client it works like:
+                // return GetFactionReactionTo(getFactionTemplateEntry(), target);
+
+                // Sanctuary
+                if (selfPlayerOwner->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_SANCTUARY) && targetPlayerOwner->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_SANCTUARY))
+                    return REP_FRIENDLY;
+
+                // Nostalrius: Hackfix because UNIT_BYTE2_FLAG_FFA_PVP is not implemented yet.
+                if (selfPlayerOwner->IsFFAPvP() && targetPlayerOwner->IsFFAPvP())
+                    return REP_HOSTILE;
+            }
+
+            // check FFA_PVP - not implemented that way on MaNGOS :/
+            /*
+            if (GetByteValue(UNIT_FIELD_BYTES_2, 1) & UNIT_BYTE2_FLAG_FFA_PVP
+                && target->GetByteValue(UNIT_FIELD_BYTES_2, 1) & UNIT_BYTE2_FLAG_FFA_PVP)
+                return REP_HOSTILE;
+            */
+
+            if (selfPlayerOwner)
+            {
+                if (FactionTemplateEntry const* targetFactionTemplateEntry = target->getFactionTemplateEntry())
+                {
+                    if (ReputationRank const* repRank = selfPlayerOwner->GetReputationMgr().GetForcedRankIfAny(targetFactionTemplateEntry))
+                        return *repRank;
+                    if (FactionEntry const* targetFactionEntry = sFactionStore.LookupEntry(targetFactionTemplateEntry->faction))
+                    {
+                        if (targetFactionEntry->CanHaveReputation())
+                        {
+                            // check contested flags
+                            if (targetFactionTemplateEntry->factionFlags & FACTION_TEMPLATE_FLAG_CONTESTED_GUARD
+                                    && selfPlayerOwner->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_CONTESTED_PVP))
                                 return REP_HOSTILE;
-                        return REP_FRIENDLY;
+
+                            // if faction has reputation, hostile state depends only from AtWar state
+                            if (FactionState const* factionState = selfPlayerOwner->GetReputationMgr().GetState(targetFactionEntry))
+                                if (factionState->Flags & FACTION_FLAG_AT_WAR)
+                                    return REP_HOSTILE;
+                            return REP_FRIENDLY;
+                        }
                     }
                 }
             }
         }
     }
-
-    // Player reaction against Neutral faction Creature
-    if (selfPlayerOwner && !targetPlayerOwner)
-    {
-        if (FactionTemplateEntry const* targetFactionTemplateEntry = target->getFactionTemplateEntry())
-        {
-            if (FactionEntry const* targetFactionEntry = sFactionStore.LookupEntry(targetFactionTemplateEntry->faction))
-            {
-                if(targetFactionEntry->CanHaveReputation())
-                {
-                    return selfPlayerOwner->GetReputationMgr().GetRank(targetFactionEntry);
-                }
-            }
-        }
-    }
-
     // do checks dependant only on our faction
     return GetFactionReactionTo(getFactionTemplateEntry(), target);
 }
@@ -9413,6 +9398,10 @@ void Unit::StopMoving(bool force)
         init.SetStop(); // Will trigger CMSG_MOVE_SPLINE_DONE from client.
         init.Launch();
     }
+    else if (GetTypeId() != TYPEID_PLAYER) {
+        init.SetFacing(GetOrientation());
+        init.Launch();
+    }
 
     DisableSpline();
 }
@@ -9614,44 +9603,6 @@ bool Unit::isAttackReady(WeaponAttackType type) const
 }
 void Unit::SetDisplayId(uint32 modelId)
 {
-    if (IsPlayer())
-    {
-        float mod_x = 1;
-        switch (modelId)
-        {
-        case 59:
-            mod_x *= DEFAULT_TAUREN_MALE_SCALE;
-            break;
-        case 60:
-            mod_x *= DEFAULT_TAUREN_FEMALE_SCALE;
-            break;
-        // Orb of Deception Gone
-        case 10148:
-            mod_x *= DEFAULT_TAUREN_MALE_SCALE;
-            break;
-        case 10149:
-            mod_x *= DEFAULT_TAUREN_FEMALE_SCALE;
-            break;
-        }
-        switch (GetDisplayId())
-        {
-        case 59:
-            mod_x /= DEFAULT_TAUREN_MALE_SCALE;
-            break;
-        case 60:
-            mod_x /= DEFAULT_TAUREN_FEMALE_SCALE;
-            break;
-            // Orb of Deception Gone
-        case 10148:
-            mod_x /= DEFAULT_TAUREN_MALE_SCALE;
-            break;
-        case 10149:
-            mod_x /= DEFAULT_TAUREN_FEMALE_SCALE;
-            break;
-        }
-        ApplyPercentModFloatValue(OBJECT_FIELD_SCALE_X, (mod_x -1)*100, true);
-    }
-
     SetUInt32Value(UNIT_FIELD_DISPLAYID, modelId);
 
     UpdateModelData();
@@ -9808,6 +9759,9 @@ Unit* Unit::SelectRandomFriendlyTarget(Unit* except /*= NULL*/, float radius /*=
     // remove current target
     if (except)
         targets.remove(except);
+
+    // remove self
+    targets.remove((Unit *) this);
 
     // remove not LoS targets
     for (std::list<Unit *>::iterator tIter = targets.begin(); tIter != targets.end();)
@@ -11208,15 +11162,15 @@ void Unit::SetMovement(UnitMovementType pType)
         mePlayer->GetCheatData()->OrderSent(&data);
         mePlayer->GetSession()->SendPacket(&data);
         
-        // Send root messages now rather than on acks from the force messages
-        // so our state is consistent
-        if (pType == MOVE_ROOT || pType == MOVE_UNROOT) {
+        // We can't send movement info here because it is out-of-date with the client
+        // and causes issues with unit speed updates on death/res
+        /*if (pType == MOVE_ROOT || pType == MOVE_UNROOT) {
             WorldPacket rootData(pType == MOVE_ROOT ? MSG_MOVE_ROOT : MSG_MOVE_UNROOT, 31);
             rootData << GetPackGUID();
             rootData << m_movementInfo;
             
             mePlayer->SendMovementMessageToSet(std::move(rootData), false);
-        }
+        }*/
     }
     if (controller)
         controller->GetSession()->SendPacket(&data);
@@ -11366,6 +11320,33 @@ void Unit::RemoveAllSpellCooldown()
 
         m_spellCooldowns.clear();
     }
+}
+
+void Unit::setTransformScale(float scale)
+{
+    if (!scale)
+    {
+        sLog.outError("Attempt to set transform scale to 0!");
+        return;
+    }
+    ApplyPercentModFloatValue(OBJECT_FIELD_SCALE_X,(scale/m_nativeScaleOverride -1)*100,true);
+    m_nativeScaleOverride = scale;
+}
+
+void Unit::resetTransformScale()
+{
+    setTransformScale(getNativeScale());
+}
+
+float Unit::getNativeScale() const
+{
+    return m_nativeScale;
+}
+
+void Unit::setNativeScale(float scale)
+{
+    setTransformScale(scale);
+    m_nativeScale = scale;
 }
 
 void Unit::CooldownEvent(SpellEntry const *spellInfo, uint32 itemId, Spell* spell)
@@ -11522,17 +11503,23 @@ void Unit::InitPlayerDisplayIds()
 
     uint8 gender = getGender();
 
+    SetObjectScale(DEFAULT_OBJECT_SCALE);
     switch (gender)
     {
         case GENDER_FEMALE:
             SetDisplayId(info->displayId_f);
             SetNativeDisplayId(info->displayId_f);
+            if (getRace() == RACE_TAUREN)
+                setNativeScale(DEFAULT_TAUREN_FEMALE_SCALE);
             break;
         case GENDER_MALE:
             SetDisplayId(info->displayId_m);
             SetNativeDisplayId(info->displayId_m);
+            if (getRace() == RACE_TAUREN)
+                setNativeScale(DEFAULT_TAUREN_MALE_SCALE);
             break;
         default:
             return;
     }
+
 }
