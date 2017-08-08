@@ -395,6 +395,7 @@ class MANGOS_DLL_SPEC ChatHandler
 
         bool HandleDebugPlayCinematicCommand(char* args);
         bool HandleDebugPlaySoundCommand(char* args);
+        bool HandleDebugPlayMusicCommand(char* args);
 
         bool HandleDebugSendBuyErrorCommand(char* args);
         bool HandleDebugSendChannelNotifyCommand(char* args);
@@ -406,6 +407,13 @@ class MANGOS_DLL_SPEC ChatHandler
         bool HandleDebugSendQuestInvalidMsgCommand(char* args);
         bool HandleDebugSendSellErrorCommand(char* args);
         bool HandleDebugSendSpellFailCommand(char* args);
+
+        /*
+        Send the visual of the next channeled spell after args, suggested macro :
+        /run if not f then f=ChatFrame_OnEvent ChatFrame_OnEvent=function(e)f(e)if p==0 and e=='CHAT_MSG_SYSTEM'then n=gsub(arg1,'%D*(%d*)%s.*','%1')end end end n=n or 0 SendChatMessage('.debug send chanvisualnext '..(p==1 and n or -1))p=p==1 and 0 or 1
+        */
+        bool HandleDebugSendNextChannelSpellVisualCommand(char* args);
+        bool HandleSendSpellChannelVisualCommand(char* args);
 
         bool HandleEventListCommand(char* args);
         bool HandleEventStartCommand(char* args);
@@ -775,9 +783,11 @@ class MANGOS_DLL_SPEC ChatHandler
 
         bool HandleCooldownCommand(char* args);
         bool HandleUnLearnCommand(char* args);
+        bool HandleRemoveRidingCommand(char* args);
         bool HandleGetDistanceCommand(char* args);
         bool HandleModifyStandStateCommand(char* args);
         bool HandleDieCommand(char* args);
+        bool HandleFearCommand(char* args);
         bool HandleDamageCommand(char* args);
         bool HandleReviveCommand(char* args);
         bool HandleModifyMorphCommand(char* args);
@@ -791,6 +801,7 @@ class MANGOS_DLL_SPEC ChatHandler
         bool HandleShowAreaCommand(char* args);
         bool HandleHideAreaCommand(char* args);
         bool HandleAddItemCommand(char* args);
+        bool HandleDeleteItemCommand(char* args);
         bool HandleAddItemSetCommand(char* args);
 
         bool HandleBankCommand(char* args);

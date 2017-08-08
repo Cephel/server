@@ -191,6 +191,7 @@ ChatCommand * ChatHandler::getCommandTable()
     {
         { NODE, "cinematic",      SEC_MODERATOR,      false, &ChatHandler::HandleDebugPlayCinematicCommand,       "", nullptr },
         { NODE, "sound",          SEC_MODERATOR,      false, &ChatHandler::HandleDebugPlaySoundCommand,           "", nullptr },
+        { NODE, "music",          SEC_MODERATOR,      false, &ChatHandler::HandleDebugPlayMusicCommand,           "", nullptr },
         { MSTR, nullptr,       0,                  false, nullptr,                                                "", nullptr }
     };
 
@@ -214,6 +215,8 @@ ChatCommand * ChatHandler::getCommandTable()
         { NODE, "sellerror",      SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSendSellErrorCommand,       "", nullptr },
         { NODE, "spellfail",      SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugSendSpellFailCommand,       "", nullptr },
         { NODE, "visual",         SEC_GAMEMASTER,     true,  &ChatHandler::HandleSendSpellVisualCommand,          "", nullptr },
+        { NODE, "chanvisual",     SEC_GAMEMASTER,     true,  &ChatHandler::HandleSendSpellChannelVisualCommand,   "", nullptr },
+        { NODE, "chanvisualnext", SEC_GAMEMASTER,     true,  &ChatHandler::HandleDebugSendNextChannelSpellVisualCommand, "", nullptr },
         { NODE, "impact",         SEC_GAMEMASTER,     true,  &ChatHandler::HandleSendSpellImpactCommand,          "", nullptr },
         { MSTR, nullptr,       0,                  false, nullptr,                                                "", nullptr }
     };
@@ -1028,6 +1031,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { NODE, "commands",       SEC_PLAYER,         true,  &ChatHandler::HandleCommandsCommand,            "", nullptr },
         { NODE, "demorph",        SEC_GAMEMASTER,     false, &ChatHandler::HandleDeMorphCommand,             "", nullptr },
         { NODE, "die",            SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDieCommand,                 "", nullptr },
+        { NODE, "fear",           SEC_GAMEMASTER,     false, &ChatHandler::HandleFearCommand,                "", nullptr },
         { NODE, "revive",         SEC_ADMINISTRATOR,  true,  &ChatHandler::HandleReviveCommand,              "", nullptr },
         { NODE, "dismount",       SEC_PLAYER,         false, &ChatHandler::HandleDismountCommand,            "", nullptr },
         { NODE, "gps",            SEC_MODERATOR,      false, &ChatHandler::HandleGPSCommand,                 "", nullptr },
@@ -1036,6 +1040,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { NODE, "itemmove",       SEC_GAMEMASTER,     false, &ChatHandler::HandleItemMoveCommand,            "", nullptr },
         { NODE, "cooldown",       SEC_ADMINISTRATOR,  false, &ChatHandler::HandleCooldownCommand,            "", nullptr },
         { NODE, "unlearn",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleUnLearnCommand,             "", nullptr },
+        { NODE, "removeriding",   SEC_ADMINISTRATOR,  false, &ChatHandler::HandleRemoveRidingCommand,        "", nullptr },
         { NODE, "distance",       SEC_ADMINISTRATOR,  false, &ChatHandler::HandleGetDistanceCommand,         "", nullptr },
         { NODE, "recall",         SEC_MODERATOR,      false, &ChatHandler::HandleRecallCommand,              "", nullptr },
         { NODE, "save",           SEC_PLAYER,         false, &ChatHandler::HandleSaveCommand,                "", nullptr },
@@ -1057,6 +1062,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { NODE, "showarea",       SEC_ADMINISTRATOR,  false, &ChatHandler::HandleShowAreaCommand,            "", nullptr },
         { NODE, "hidearea",       SEC_ADMINISTRATOR,  false, &ChatHandler::HandleHideAreaCommand,            "", nullptr },
         { NODE, "additem",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleAddItemCommand,             "", nullptr },
+        { NODE, "deleteitem",     SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDeleteItemCommand,          "", nullptr },
         { NODE, "additemset",     SEC_ADMINISTRATOR,  false, &ChatHandler::HandleAddItemSetCommand,          "", nullptr },
         { NODE, "bank",           SEC_ADMINISTRATOR,  false, &ChatHandler::HandleBankCommand,                "", nullptr },
         { NODE, "wchange",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleChangeWeatherCommand,       "", nullptr },
