@@ -328,6 +328,14 @@ bool ChatHandler::HandleReloadQuestTemplateCommand(char* /*args*/)
     return true;
 }
 
+bool ChatHandler::HandleReloadQuestGreetingCommand(char* /*args*/)
+{
+    sLog.outString("Re-Loading Quest Greetings...");
+    sObjectMgr.LoadQuestGreetings();
+    SendSysMessage("DB table `quest_greeting` reloaded.");
+    return true;
+}
+
 bool ChatHandler::HandleReloadLootTemplatesCreatureCommand(char* /*args*/)
 {
     sLog.outString("Re-Loading Loot Tables... (`creature_loot_template`)");
@@ -962,6 +970,44 @@ bool ChatHandler::HandleAccountSetPasswordCommand(char* args)
     return true;
 }
 
+/// Set locked status for account
+bool ChatHandler::HandleAccountSetLockedCommand(char* args)
+{
+    ///- Get the command line arguments
+    char* accountStr = ExtractOptNotLastArg(&args);
+
+    std::string account_name;
+    uint32 account_id = ExtractAccountId(&accountStr, &account_name);
+    if (!account_id)
+        return false;
+
+    // Let set locked state only for lesser (strong) security level
+    // or to self account
+    if (GetAccountId() && GetAccountId() != account_id &&
+        HasLowerSecurityAccount(NULL, account_id, true))
+        return false;
+
+    uint32 value;
+    if (!ExtractUInt32(&args, value))
+    {
+        PSendSysMessage(LANG_SET_LOCK_USAGE);
+        return false;
+    }
+
+    if (value < 16)
+    {
+        LoginDatabase.PExecute("UPDATE account SET locked = '%u' WHERE id = '%u'", value, account_id);
+        PSendSysMessage(LANG_SET_LOCK_SUCCESS, account_name.c_str(), account_id, value);
+    }
+    else
+    {
+        PSendSysMessage(LANG_SET_LOCK_USAGE);
+        return false;
+    }
+
+    return true;
+}
+
 bool ChatHandler::HandleMaxSkillCommand(char* /*args*/)
 {
     Player* SelectedPlayer = getSelectedPlayer();
@@ -1047,9 +1093,10 @@ bool ChatHandler::HandleRemoveRidingCommand(char* args)
     };
 
     Player* player;
+    ObjectGuid target_guid;
     std::string name;
 
-    ExtractPlayerTarget(&args, &player, nullptr, &name);
+    ExtractPlayerTarget(&args, &player, &target_guid, &name);
 
     if (!player && name.empty())
     {
@@ -1068,7 +1115,7 @@ bool ChatHandler::HandleRemoveRidingCommand(char* args)
             options << entry.first << " ";
         }
 
-        PSendSysMessage("Unrecognised riding type. Try one of the follow: %s", options.str().c_str());
+        PSendSysMessage(LANG_REMOVE_RIDING_WRONG_TYPE, options.str().c_str());
         SetSentErrorMessage(true);
         return false;
     }
@@ -1080,29 +1127,150 @@ bool ChatHandler::HandleRemoveRidingCommand(char* args)
     }
     else
     {
-        PSendSysMessage("Sorry %s, this command doesn't quite work with offline players yet.", m_session->GetPlayerName());
-        return true;
-       /* CharacterDatabase.escape_string(name);
-
-        std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery
-        (
-            "DELETE FROM character_spell WHERE spell = %u AND guid = (SELECT guid FROM characters WHERE name = '%s')",
-            it->second, name
-        ));
+        QueryResult *result = nullptr;
+        if (it->second == 33388) // When removing Apprentice Riding check for Journeyman too. It replaces the first spell.
+            result = CharacterDatabase.PQuery("SELECT spell FROM character_spell WHERE guid = %u AND spell IN (33388, 33391)", target_guid.GetCounter());
+        else
+            result = CharacterDatabase.PQuery("SELECT spell FROM character_spell WHERE guid = %u AND spell = %u", target_guid.GetCounter(), it->second);
 
         if (!result)
         {
-            PSendSysMessage(
-                "Unable to remove %s riding skill (spell: %u) from %s - does the player exist and have this skill?",
-                it->first, it->second, name
-            );
-
+            PSendSysMessage(LANG_REMOVE_RIDING_NOT_HAVE, it->first.c_str());
             SetSentErrorMessage(true);
             return false;
-        }*/
+        }
+
+        // remove the riding skill
+        switch (it->second)
+        {
+            // Horse Riding
+            case 824:
+            {
+                if (!CharacterDatabase.PExecute("DELETE FROM character_skills WHERE skill = 148 AND guid = %u", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+            // Wolf Riding
+            case 825:
+            {
+                if (!CharacterDatabase.PExecute("DELETE FROM character_skills WHERE skill = 149 AND guid = %u", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+            // Ram Riding
+            case 826:
+            {
+                if (!CharacterDatabase.PExecute("DELETE FROM character_skills WHERE skill = 152 AND guid = %u", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+            // Tiger Riding
+            case 828:
+            {
+                if (!CharacterDatabase.PExecute("DELETE FROM character_skills WHERE skill = 150 AND guid = %u", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+            // Raptor Riding
+            case 10861:
+            {
+                if (!CharacterDatabase.PExecute("DELETE FROM character_skills WHERE skill = 533 AND guid = %u", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+            // Kodo Riding
+            case 18995:
+            {
+                if (!CharacterDatabase.PExecute("DELETE FROM character_skills WHERE skill = 713 AND guid = %u", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+            // Apprentice Riding
+            case 33388:
+            {
+                if (!CharacterDatabase.PExecute("DELETE FROM character_skills WHERE skill = 762 AND guid = %u", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+            // Journeyman Riding
+            case 33391:
+            {
+                if (!CharacterDatabase.PExecute("UPDATE character_skills SET value = 75, max = 75 WHERE skill = 762 AND value = 150 AND max = 150 AND guid = %u", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+        }
+
+        // remove the riding spell
+        if (!CharacterDatabase.PExecute("DELETE FROM character_spell WHERE spell = %u AND guid = %u", it->second, target_guid.GetCounter()))
+        {
+            SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+            SetSentErrorMessage(true);
+            return false;
+        }
+
+        switch (it->second)
+        {
+            // Apprentice Riding
+            case 33388:
+            {
+                // Remove Journeyman Riding too or it does nothing if he has it.
+                if (!CharacterDatabase.PExecute("DELETE FROM character_spell WHERE spell = 33391 AND guid = %u", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+            // Journeyman Riding
+            case 33391:
+            {
+                // Add Apprentice Riding spell.
+                if (!CharacterDatabase.PExecute("INSERT INTO character_spell VALUES (%u, 33388, 1, 0)", target_guid.GetCounter()))
+                {
+                    SendSysMessage(LANG_REMOVE_RIDING_ERROR);
+                    SetSentErrorMessage(true);
+                    return false;
+                }
+                break;
+            }
+        }
     }
 
-    PSendSysMessage("Riding skill removed from %s", name.c_str()); // check
+    PSendSysMessage(LANG_REMOVE_RIDING_SUCCESS, name.c_str()); // check
     return true;
 }
 
@@ -2158,7 +2326,7 @@ bool ChatHandler::HandleDeleteItemCommand(char* args)
             return false;
         }
 
-        player->DestroyItemCount(itemId, count, true, false);
+        player->DestroyItemCount(itemId, count, true, false, true);
         player->SaveInventoryAndGoldToDB();
     }
     else
@@ -3573,6 +3741,7 @@ bool ChatHandler::HandleFearCommand(char* /*args*/)
     }
 
     target->AddSpellAuraHolder(holder);
+    return true;
 }
 
 bool ChatHandler::HandleDamageCommand(char* args)

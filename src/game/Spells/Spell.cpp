@@ -1285,6 +1285,10 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
                             break;
                     }
 
+        // Sunder Armor triggers weapon proc as well as normal procs despite dealing no damage
+        if (m_caster->GetTypeId() == TYPEID_PLAYER && m_spellInfo->IsFitToFamilyMask<CF_WARRIOR_SUNDER_ARMOR>())
+            ((Player*)m_caster)->CastItemCombatSpell(unitTarget, BASE_ATTACK);
+
         // Fill base damage struct (unitTarget - is real spell target)
         SpellNonMeleeDamage damageInfo(caster, unitTarget, m_spellInfo->Id, GetFirstSchoolInMask(m_spellSchoolMask));
         procEx = createProcExtendMask(&damageInfo, missInfo);
@@ -1306,11 +1310,6 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
             dmg = 1;
         }
         caster->ProcDamageAndSpell(unit, real_caster ? procAttacker : PROC_FLAG_NONE, procVictim, procEx, dmg, m_attackType, m_spellInfo, this);
-    }
-    // Sunder Armor triggers main hand proc despite dealing no damage
-    else if (m_spellInfo->IsFitToFamilyMask<CF_WARRIOR_SUNDER_ARMOR>()) //sunder armor
-    {
-        ((Player*)m_caster)->CastItemCombatSpell(unitTarget, BASE_ATTACK);
     }
 
     if (missInfo != SPELL_MISS_NONE)
@@ -2758,7 +2757,6 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     break;
                 }
                 case SPELL_EFFECT_BIND:
-                case SPELL_EFFECT_RESURRECT:
                 case SPELL_EFFECT_PARRY:
                 case SPELL_EFFECT_BLOCK:
                 case SPELL_EFFECT_CREATE_ITEM:
@@ -2783,6 +2781,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     if (m_targets.getUnitTarget())
                         targetUnitMap.push_back(m_targets.getUnitTarget());
                     break;
+                case SPELL_EFFECT_RESURRECT:
                 case SPELL_EFFECT_RESURRECT_NEW:
                     if (m_targets.getUnitTarget())
                         targetUnitMap.push_back(m_targets.getUnitTarget());
@@ -3480,6 +3479,11 @@ void Spell::handle_immediate()
 
         ++m_targetNum;
         DoAllEffectOnTarget(&(*ihit));
+
+        // a channeled spell could be interrupted already because the aura on target
+        // was diminished to duration=0 see Spell::DoSpellHitOnUnit
+        if (m_channeled && m_spellState != SPELL_STATE_CASTING)
+            return;
     }
 
     for (auto ihit = m_UniqueGOTargetInfo.begin(); ihit != m_UniqueGOTargetInfo.end(); ++ihit)
@@ -6677,6 +6681,22 @@ bool Spell::IgnoreItemRequirements() const
 
 SpellCastResult Spell::CheckItems()
 {
+    // Check creature casts again here, even though they are checked in CreatureAI
+    // Need to do this for some melee attacks which are channeled, and then triggered
+    // eg. 13736
+    if (Creature *creature = m_caster->ToCreature())
+    {
+        // If the unit is disarmed and the skill requires a weapon, it cannot be cast
+        if (creature->HasWeapon() && !creature->CanUseEquippedWeapon(BASE_ATTACK))
+        {
+            for (int i = 0; i < MAX_EFFECT_INDEX; i++)
+            {
+                if (m_spellInfo->Effect[i] == SPELL_EFFECT_WEAPON_DAMAGE || m_spellInfo->Effect[i] == SPELL_EFFECT_WEAPON_DAMAGE_NOSCHOOL)
+                    return SPELL_FAILED_EQUIPPED_ITEM;
+            }
+        }
+    }
+
     if (m_caster->GetTypeId() != TYPEID_PLAYER)
         return SPELL_CAST_OK;
 
@@ -7298,6 +7318,7 @@ bool Spell::CheckTarget(Unit* target, SpellEffectIndex eff)
                 break;
         // no break. Cannibalize checks corpse target LOS.
         // fall through
+        case SPELL_EFFECT_RESURRECT:
         case SPELL_EFFECT_RESURRECT_NEW:
             // player far away, maybe his corpse near?
             if (target != m_caster && !(m_spellInfo->AttributesEx2 & SPELL_ATTR_EX2_IGNORE_LOS) && !target->IsWithinLOSInMap(m_caster))
